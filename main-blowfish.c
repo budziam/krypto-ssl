@@ -84,7 +84,8 @@ void handle_decrypt_block(unsigned char *encrypted_block, unsigned char *decrypt
 }
 
 void retrieve_stolen_cipher_text(unsigned char *thief, unsigned char *owner) {
-    for (int i = BF_BLOCK - 1; i >= 0; --i) {
+    int i;
+    for (i = BF_BLOCK - 1; i >= 0; --i) {
         if (owner[i] == thief[i]) {
             thief[i] = 0;
         }
