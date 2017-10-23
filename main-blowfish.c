@@ -11,6 +11,7 @@ FILE *output_file;
 
 int chaining_mode;
 int encryption_mode;
+BF_KEY bf_key;
 
 void diedie(char * message) {
     printf("%s\n", message);
@@ -18,15 +19,7 @@ void diedie(char * message) {
 }
 
 void prepare_blowfish_key(char *cipher) {
-    if (BF_ENCRYPT == encryption_mode) {
-//        AES_set_encrypt_key((const unsigned char *) cipher, AES_BLOCK_SIZE * 8, &aes_key);
-    }
-    else if (BF_DECRYPT == encryption_mode) {
-//        AES_set_decrypt_key((const unsigned char *) cipher, AES_BLOCK_SIZE * 8, &aes_key);
-    }
-    else {
-        diedie("No encryption mode");
-    }
+    BF_set_key(&bf_key, 8, cipher);
 }
 
 void open_files(char **argv) {
