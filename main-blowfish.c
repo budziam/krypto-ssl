@@ -100,11 +100,13 @@ void clear_buffer(unsigned char *buffer) {
     }
 }
 
-void cipher_text_steal(unsigned char *thief, unsigned char *owner, int steal_start) {
+void add_iso_10216_2_padding(unsigned char *block, int last_block_size) {
     int i;
-    for (i = steal_start; i < BF_BLOCK; ++i) {
-        thief[i] = owner[i];
+    for (i = last_block_size; i < BF_BLOCK; ++i) {
+        block[i] = 1;
     }
+
+    block[BF_BLOCK - 1] = BF_BLOCK - last_block_size;
 }
 
 void encrypt_file() {
@@ -123,7 +125,7 @@ void encrypt_file() {
         bytes_read = (int) fread(encryption_target_block, 1, BF_BLOCK, input_file);
     }
 
-    cipher_text_steal(encryption_target_block, previous_encrypted_block, bytes_read);
+    add_iso_10216_2_padding(encryption_target_block, bytes_read);
 
     encrypt_block(encryption_target_block, encrypted_block);
     write_buffer_to_file(encrypted_block);
@@ -139,17 +141,18 @@ void decrypt_block(unsigned char *input_block, unsigned char *output_block) {
     bf_crypt(input_block, output_block, BF_DECRYPT);
 }
 
-void handle_decrypt_block(unsigned char *encrypted_block, unsigned char *decrypted_block, unsigned char *rewrite_target_block) {
+void handle_decrypt_block(unsigned char *encrypted_block, unsigned char *decrypted_block,
+                          unsigned char *rewrite_target_block) {
     decrypt_block(encrypted_block, decrypted_block);
     copy_buffer(decrypted_block, rewrite_target_block);
 }
 
-void retrieve_stolen_cipher_text(unsigned char *thief, unsigned char *owner) {
+void remove_iso_10216_2_padding(unsigned char *block) {
+    int size = block[BF_BLOCK - 1];
+
     int i;
-    for (i = BF_BLOCK - 1; i >= 0; --i) {
-        if (owner[i] == thief[i]) {
-            thief[i] = 0;
-        }
+    for (i = BF_BLOCK - 1; i > BF_BLOCK - 1 - size; --i) {
+        block[i] = 0;
     }
 }
 
@@ -177,7 +180,7 @@ void decrypt_file() {
         diedie("Encrypted input file should have block of equal size.\n");
     }
 
-    retrieve_stolen_cipher_text(previous_decrypted_block, second_previous_decrypted_block);
+    remove_iso_10216_2_padding(previous_decrypted_block);
     write_buffer_to_file(previous_decrypted_block);
 }
 
