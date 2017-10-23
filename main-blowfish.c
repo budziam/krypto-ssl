@@ -129,11 +129,6 @@ void encrypt_file() {
     write_buffer_to_file(encrypted_block);
 }
 
-int write_buffer_to_file(unsigned char *buffer) {
-    return (int) fwrite(buffer, BF_BLOCK, 1, output_file);
-}
-
-
 void write_previous_decrypted_block(unsigned char *decrypted_block, unsigned char *rewrite_target_block) {
     write_buffer_to_file(decrypted_block);
     copy_buffer(decrypted_block, rewrite_target_block);
