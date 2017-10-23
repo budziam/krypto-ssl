@@ -1,142 +1,248 @@
 #include <stdio.h>
-#include <stdlib.h>
+#include <openssl/aes.h>
 #include <string.h>
-#include <openssl/camellia.h>
 
-// https://en.wikipedia.org/wiki/Padding_(cryptography)#ANSI_X.923
-// https://github.com/openssl/openssl/blob/master/include/openssl/camellia.h
+#define ERROR -1
+#define SUCCESS 0
 
-char prompt[]  = "[input] [output] [camellia_key (at least 16 bytes)] -cbc/ecb -encrypt/decrypt";
+const int CBC = 0;
+const int ECB = 1;
+int chaining_mode;
+int encryption_mode;
+FILE *input_file;
+FILE *output_file;
+AES_KEY aes_key;
+unsigned char init_vector[AES_BLOCK_SIZE] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 
-int main(int argc, char* argv[]) {
-    int cbc;
-    int encrypt;
-    FILE *input, *output;
-    int byte_read;
-    unsigned char buffer[CAMELLIA_BLOCK_SIZE];
-    unsigned char *key = argv[3];
-    CAMELLIA_KEY camellia_key;
-    unsigned char out_buffer[CAMELLIA_BLOCK_SIZE];
-    int prev_read = 0;
-    char n;
-    char ivec[CAMELLIA_BLOCK_SIZE];
-    memset(ivec, 0, CAMELLIA_BLOCK_SIZE);
+int decrypt_file();
+int encrypt_file();
+int copy_buffer(unsigned char *from, unsigned char *to);
+int clear_buffer(unsigned char *buffer);
+int write_buffer_to_file(unsigned char *buffer);
+int encrypt_block(unsigned char *input_block, unsigned char *output_block);
+int decrypt_block(unsigned char *input_block, unsigned char *output_block);
+int aes_crypt(unsigned char *input_block, unsigned char *output_block, const int encryption_mode);
+int handle_arguments(int argc, char **argv);
+int open_files(char **pString);
+int close_files();
+int prepare_aes_key(char *user_key);
+int aes_crypt_file(int encryption_mode);
+int retrieve_stolen_cipher_text(unsigned char *thief, unsigned char *owner);
+int cipher_text_steal(unsigned char *thief, unsigned char *owner, int steal_start);
+int handle_decrypt_block(unsigned char *encrypted_block, unsigned char *decrypted_block, unsigned char *rewrite_target_block);
+int handle_encrypt_block(unsigned char *encryption_target_block, unsigned char *encrypted_block, unsigned char *rewrite_target_block);
+int write_previous_decrypted_block(unsigned char *decrypted_block, unsigned char *rewrite_target_block);
 
-    if(argc < 6) {
-        puts(prompt);
-        return 1;
+int main(int argc, char** argv) {
+    handle_arguments(argc, argv);
+    open_files(argv);
+    prepare_aes_key(argv[5]);
+    aes_crypt_file(encryption_mode);
+    close_files();
+
+    return SUCCESS;
+}
+
+int encrypt_file() {
+    int bytes_read;
+    unsigned char encryption_target_block[AES_BLOCK_SIZE];
+    unsigned char encrypted_block[AES_BLOCK_SIZE];
+    unsigned char previous_encrypted_block[AES_BLOCK_SIZE];
+
+    bytes_read = (int) fread(encryption_target_block, 1, AES_BLOCK_SIZE, input_file);
+    while (bytes_read == AES_BLOCK_SIZE) {
+        handle_encrypt_block(encryption_target_block, encrypted_block, previous_encrypted_block);
+
+        write_buffer_to_file(encrypted_block);
+
+        clear_buffer(encryption_target_block);
+        bytes_read = (int) fread(encryption_target_block, 1, AES_BLOCK_SIZE, input_file);
     }
 
+    cipher_text_steal(encryption_target_block, previous_encrypted_block, bytes_read);
 
-    input = fopen(argv[1], "rb");
-    output = fopen(argv[2], "wb");
+    encrypt_block(encryption_target_block, encrypted_block);
+    write_buffer_to_file(encrypted_block);
 
+    return SUCCESS;
+}
 
-    if((input == 0) || (output == 0)) {
-        if(input == 0)
-            puts("Error reading input file");
-        if(output == 0)
-            puts("Error reading output file");
-        return 4;
+int handle_encrypt_block(unsigned char *encryption_target_block, unsigned char *encrypted_block, unsigned char *rewrite_target_block) {
+    encrypt_block(encryption_target_block, encrypted_block);
+    copy_buffer(encryption_target_block, rewrite_target_block);
+
+    return SUCCESS;
+}
+
+int decrypt_file() {
+    int bytes_read;
+    unsigned char encrypted_block[AES_BLOCK_SIZE];
+    unsigned char decrypted_block[AES_BLOCK_SIZE];
+    unsigned char previous_decrypted_block[AES_BLOCK_SIZE];
+    unsigned char second_previous_decrypted_block[AES_BLOCK_SIZE];
+
+    fread(encrypted_block, 1, AES_BLOCK_SIZE, input_file);
+    handle_decrypt_block(encrypted_block, decrypted_block, previous_decrypted_block);
+
+    bytes_read = (int) fread(encrypted_block, 1, AES_BLOCK_SIZE, input_file);
+    while (bytes_read == AES_BLOCK_SIZE) {
+        write_previous_decrypted_block(previous_decrypted_block, second_previous_decrypted_block);
+
+        handle_decrypt_block(encrypted_block, decrypted_block, previous_decrypted_block);
+
+        bytes_read = (int) fread(encrypted_block, 1, AES_BLOCK_SIZE, input_file);
     }
 
-    if (strlen(argv[3]) < 16) {
-        puts(prompt);
-        return 12;
+    if (bytes_read != 0) {
+        fprintf(stderr, "This should not happen in decryption mode.");
+        fprintf(stderr, "Encrypted input file should have blocks of equal size.\n");
+
+        return ERROR;
     }
 
-    if(!strcmp(argv[4],"-cbc")) {
-        cbc = 1;
-    } else if(!strcmp(argv[4],"-ecb")) {
-        cbc = 0;
+    retrieve_stolen_cipher_text(previous_decrypted_block, second_previous_decrypted_block);
+    write_buffer_to_file(previous_decrypted_block);
+
+    return SUCCESS;
+}
+
+int write_previous_decrypted_block(unsigned char *decrypted_block, unsigned char *rewrite_target_block) {
+    write_buffer_to_file(decrypted_block);
+    copy_buffer(decrypted_block, rewrite_target_block);
+
+    return SUCCESS;
+}
+
+int handle_decrypt_block(unsigned char *encrypted_block, unsigned char *decrypted_block, unsigned char *rewrite_target_block) {
+    decrypt_block(encrypted_block, decrypted_block);
+    copy_buffer(decrypted_block, rewrite_target_block);
+
+    return SUCCESS;
+}
+
+int aes_crypt_file(int encryption_mode) {
+    if (AES_ENCRYPT == encryption_mode) {
+        return encrypt_file();
+    } else if (AES_DECRYPT == encryption_mode) {
+        return decrypt_file();
+    }
+
+    return ERROR;
+}
+
+int prepare_aes_key(char *user_key) {
+    if (AES_ENCRYPT == encryption_mode) {
+        AES_set_encrypt_key((const unsigned char *) user_key, AES_BLOCK_SIZE * 8, &aes_key);
+    }
+    if (AES_DECRYPT == encryption_mode) {
+        AES_set_decrypt_key((const unsigned char *) user_key, AES_BLOCK_SIZE * 8, &aes_key);
+    }
+
+    return SUCCESS;
+}
+
+int open_files(char **argv) {
+    if ((input_file = fopen(argv[3], "rb")) == NULL) {
+        fprintf(stderr, "%s: can not read input file %s\n", argv[0], argv[3]);
+        return ERROR;
+    }
+
+    if ((output_file = fopen(argv[4], "wb")) == NULL) {
+        fprintf(stderr, "%s: can not read output file %s\n", argv[0], argv[3]);
+        return ERROR;
+    }
+
+    return SUCCESS;
+}
+
+int close_files()
+{
+    fclose(input_file);
+    fflush(output_file);
+    fclose(output_file);
+
+    return SUCCESS;
+}
+
+int handle_arguments(int argc, char **argv) {
+    if (argc != 6) {
+        fprintf(stderr, "Use: -enc|-dec -ecb|-cbc input_file_path output_file_path cipher");
+        return ERROR;
+    }
+
+    if (strcmp(argv[1], "-enc") == 0) {
+        encryption_mode = AES_ENCRYPT;
+    } else if (strcmp(argv[1], "-dec") == 0) {
+        encryption_mode = AES_DECRYPT;
     } else {
-        puts(prompt);
-        return 2;
+        return ERROR;
     }
 
-
-    if(!strcmp(argv[5], "-encrypt")) {
-        encrypt = CAMELLIA_ENCRYPT;
-    } else if(!strcmp(argv[5], "-decrypt")) {
-        encrypt = CAMELLIA_DECRYPT;
+    if (strcmp(argv[2], "-cbc") == 0) {
+        chaining_mode = CBC;
+    } else if (strcmp(argv[2], "-ecb") == 0) {
+        chaining_mode = ECB;
     } else {
-        puts(prompt);
-        return 3;
+        return ERROR;
     }
 
+    return SUCCESS;
+}
 
-    fprintf(stderr, "Block Size: %d\n", CAMELLIA_BLOCK_SIZE);
-    fprintf(stderr, "Setting key = %s\n", key);
-    Camellia_set_key(key, 128, &camellia_key);
-    fprintf(stderr, "DONE: Setting key\n");
-
-
-    int block_index = 0;
-    while( (byte_read = fread(buffer, 1, CAMELLIA_BLOCK_SIZE, input))) {
-
-
-        fprintf(stderr, "Processing block %d byte read: %d\n", block_index, byte_read);
-        if((encrypt == CAMELLIA_DECRYPT) && prev_read) {
-            fprintf(stderr, "Trying to write to out_buffer after decryption\n");
-            fwrite(out_buffer, 1, CAMELLIA_BLOCK_SIZE, output);
-            fprintf(stderr, "Out_buffer write after decryption \n");
-        }
-
-        if((byte_read) < CAMELLIA_BLOCK_SIZE && (encrypt == CAMELLIA_ENCRYPT)) {
-            fprintf(stderr, "Doing padding\n");
-            n = CAMELLIA_BLOCK_SIZE - byte_read;
-            int i = n - 1;
-            while(i >= 1) {
-                buffer[CAMELLIA_BLOCK_SIZE - 1 - i] = 0;
-                i--;
-            }
-            buffer[CAMELLIA_BLOCK_SIZE - 1] = n;
-        }
-        else {
-            n = 0;
-        }
-
-        prev_read = 1;
-
-        fprintf(stderr, "Attempting to encrypt/decrypt block %d\n", block_index);
-        if (cbc == 1) {
-            //void Camellia_cbc_encrypt(const unsigned char *in, unsigned char *out, size_t length, const CAMELLIA_KEY *key,
-            //unsigned char *ivec, const int enc);
-            Camellia_cbc_encrypt(buffer, out_buffer, CAMELLIA_BLOCK_SIZE, &camellia_key, ivec, encrypt);
+int retrieve_stolen_cipher_text(unsigned char *thief, unsigned char *owner) {
+    for (int i = AES_BLOCK_SIZE - 1; i >= 0; --i) {
+        if (owner[i] == thief[i]) {
+            thief[i] = 0;
         } else {
-            //void Camellia_ecb_encrypt(const unsigned char *in, unsigned char *out, const CAMELLIA_KEY *key, const int enc);
-            Camellia_ecb_encrypt(buffer, out_buffer, &camellia_key, encrypt);
+            return SUCCESS;
         }
-
-        if (encrypt == CAMELLIA_ENCRYPT) {
-            fwrite(out_buffer, 1, CAMELLIA_BLOCK_SIZE, output);
-        }
-        block_index++;
     }
 
-    if (encrypt == CAMELLIA_DECRYPT) {
-        int out_count = CAMELLIA_BLOCK_SIZE - out_buffer[CAMELLIA_BLOCK_SIZE - 1];
-        fprintf(stderr, "Last block: writing %d bytes \n", out_count);
-        fwrite(out_buffer, 1, out_count, output);
+    return SUCCESS;
+}
+
+int cipher_text_steal(unsigned char *thief, unsigned char *owner, int steal_start) {
+    for (int i = steal_start; i < AES_BLOCK_SIZE; ++i) {
+        thief[i] = owner[i];
     }
 
+    return SUCCESS;
+}
 
-    if ((encrypt == CAMELLIA_ENCRYPT) && (n == 0)) {
-        fprintf(stderr, "Last block: writing last padding block \n");
-        memset(buffer, 0, CAMELLIA_BLOCK_SIZE);
-        buffer[CAMELLIA_BLOCK_SIZE - 1] = CAMELLIA_BLOCK_SIZE;
+int encrypt_block(unsigned char *input_block, unsigned char *output_block) {
+    return aes_crypt(input_block, output_block, AES_ENCRYPT);
+}
 
-        if (cbc == 1) {
-            Camellia_cbc_encrypt(buffer, out_buffer, CAMELLIA_BLOCK_SIZE, &camellia_key, ivec, encrypt);
-        } else {
-            Camellia_ecb_encrypt(buffer, out_buffer, &camellia_key, encrypt);
-        }
+int decrypt_block(unsigned char *input_block, unsigned char *output_block) {
+    return aes_crypt(input_block, output_block, AES_DECRYPT);
+}
 
-        fwrite(out_buffer, 1, CAMELLIA_BLOCK_SIZE, output);
-
+int aes_crypt(unsigned char *input_block, unsigned char *output_block, const int encryption_mode) {
+    if (ECB == chaining_mode) {
+        AES_ecb_encrypt(input_block, output_block, &aes_key, encryption_mode);
+    } else {
+        AES_cbc_encrypt(input_block, output_block, AES_BLOCK_SIZE, &aes_key, init_vector, encryption_mode);
     }
 
-    fclose(input);
-    fclose(output);
-    return 0;
+    return SUCCESS;
+}
+
+int write_buffer_to_file(unsigned char *buffer) {
+    return (int) fwrite(buffer, AES_BLOCK_SIZE, 1, output_file);
+}
+
+int copy_buffer(unsigned char *from, unsigned char *to) {
+    for (int i = 0; i < AES_BLOCK_SIZE; ++i) {
+        to[i] = from[i];
+    }
+
+    return SUCCESS;
+}
+
+int clear_buffer(unsigned char *buffer) {
+    for (int i = 0; i < AES_BLOCK_SIZE; ++i) {
+        buffer[i] = 0;
+    }
+
+    return SUCCESS;
 }
