@@ -135,6 +135,10 @@ void write_previous_decrypted_block(unsigned char *decrypted_block, unsigned cha
 }
 
 
+int decrypt_block(unsigned char *input_block, unsigned char *output_block) {
+    return bf_crypt(input_block, output_block, AES_DECRYPT);
+}
+
 void handle_decrypt_block(unsigned char *encrypted_block, unsigned char *decrypted_block, unsigned char *rewrite_target_block) {
     decrypt_block(encrypted_block, decrypted_block);
     copy_buffer(decrypted_block, rewrite_target_block);
