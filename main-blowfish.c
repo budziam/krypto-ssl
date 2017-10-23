@@ -5,6 +5,10 @@
 
 const int CBC = 0;
 const int ECB = 1;
+
+FILE *input_file;
+FILE *output_file;
+
 int chaining_mode;
 int encryption_mode;
 
@@ -24,6 +28,25 @@ void prepare_blowfish_key(char *cipher) {
         diedie("No encryption mode");
     }
 }
+
+void open_files(char **argv) {
+    if ((input_file = fopen(argv[3], "rb")) == NULL) {
+        diedie("cannot read input file");
+    }
+
+    if ((output_file = fopen(argv[4], "wb")) == NULL) {
+        diedie("cannot read output file");
+    }
+}
+
+
+void close_files()
+{
+    fclose(input_file);
+    fflush(output_file);
+    fclose(output_file);
+}
+
 
 void handle_arguments(int argc, char **argv) {
     if (argc != 6) {
@@ -49,8 +72,8 @@ void handle_arguments(int argc, char **argv) {
 
 int main(int argc, char** argv) {
     handle_arguments(argc, argv);
-//    open_files(argv);
+    open_files(argv);
 //    prepare_aes_key(argv[5]);
 //    aes_crypt_file(encryption_mode);
-//    close_files();
+    close_files();
 }
