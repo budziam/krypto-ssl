@@ -19,7 +19,7 @@ void diedie(char * message) {
 }
 
 void prepare_blowfish_key(char *cipher) {
-    BF_set_key(&bf_key, 8, cipher);
+    BF_set_key(&bf_key, 8, (const unsigned char *)cipher);
 }
 
 void open_files(char **argv) {
@@ -66,7 +66,7 @@ void handle_arguments(int argc, char **argv) {
 int main(int argc, char** argv) {
     handle_arguments(argc, argv);
     open_files(argv);
-//    prepare_aes_key(argv[5]);
+    prepare_blowfish_key(argv[5]);
 //    aes_crypt_file(encryption_mode);
     close_files();
 }
