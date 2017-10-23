@@ -67,9 +67,58 @@ void encrypt_file() {
 
 }
 
-void decrypt_file() {
-
+int write_buffer_to_file(unsigned char *buffer) {
+    return (int) fwrite(buffer, BF_BLOCK, 1, output_file);
 }
+
+
+void write_previous_decrypted_block(unsigned char *decrypted_block, unsigned char *rewrite_target_block) {
+    write_buffer_to_file(decrypted_block);
+    copy_buffer(decrypted_block, rewrite_target_block);
+}
+
+
+void handle_decrypt_block(unsigned char *encrypted_block, unsigned char *decrypted_block, unsigned char *rewrite_target_block) {
+    decrypt_block(encrypted_block, decrypted_block);
+    copy_buffer(decrypted_block, rewrite_target_block);
+}
+
+void retrieve_stolen_cipher_text(unsigned char *thief, unsigned char *owner) {
+    for (int i = BF_BLOCK - 1; i >= 0; --i) {
+        if (owner[i] == thief[i]) {
+            thief[i] = 0;
+        }
+    }
+}
+
+void decrypt_file() {
+    int bytes_read;
+    unsigned char encrypted_block[BF_BLOCK];
+    unsigned char decrypted_block[BF_BLOCK];
+    unsigned char previous_decrypted_block[BF_BLOCK];
+    unsigned char second_previous_decrypted_block[BF_BLOCK];
+
+    fread(encrypted_block, 1, BF_BLOCK, input_file);
+    handle_decrypt_block(encrypted_block, decrypted_block, previous_decrypted_block);
+
+    bytes_read = (int) fread(encrypted_block, 1, BF_BLOCK, input_file);
+    while (bytes_read == BF_BLOCK) {
+        write_previous_decrypted_block(previous_decrypted_block, second_previous_decrypted_block);
+
+        handle_decrypt_block(encrypted_block, decrypted_block, previous_decrypted_block);
+
+        bytes_read = (int) fread(encrypted_block, 1, BF_BLOCK, input_file);
+    }
+
+    if (bytes_read != 0) {
+        fprintf(stderr, "This should not happen in decryption mode.");
+        diedie("Encrypted input file should have block of equal size.\n");
+    }
+
+    retrieve_stolen_cipher_text(previous_decrypted_block, second_previous_decrypted_block);
+    write_buffer_to_file(previous_decrypted_block);
+}
+
 
 void blowfish_crypt_file() {
     if (BF_ENCRYPT == encryption_mode) {
