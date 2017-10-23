@@ -13,13 +13,15 @@ int chaining_mode;
 int encryption_mode;
 BF_KEY bf_key;
 
-void diedie(char * message) {
+unsigned char init_vector[BF_BLOCK] = {0, 1, 2, 3, 4, 5, 6, 7};
+
+void diedie(char *message) {
     printf("%s\n", message);
     exit(1);
 }
 
 void prepare_blowfish_key(char *cipher) {
-    BF_set_key(&bf_key, 8, (const unsigned char *)cipher);
+    BF_set_key(&bf_key, 8, (const unsigned char *) cipher);
 }
 
 void open_files(char **argv) {
@@ -33,8 +35,7 @@ void open_files(char **argv) {
 }
 
 
-void close_files()
-{
+void close_files() {
     fclose(input_file);
     fflush(output_file);
     fclose(output_file);
@@ -63,8 +64,69 @@ void handle_arguments(int argc, char **argv) {
     }
 }
 
-void encrypt_file() {
+void bf_crypt(unsigned char *input_block, unsigned char *output_block, const int encryption_mode) {
+    if (ECB == chaining_mode) {
+        BF_ecb_encrypt(input_block, output_block, &bf_key, encryption_mode);
+    } else {
+        BF_cbc_encrypt(input_block, output_block, BF_BLOCK, &bf_key, init_vector, encryption_mode);
+    }
+}
 
+void encrypt_block(unsigned char *input_block, unsigned char *output_block) {
+    bf_crypt(input_block, output_block, BF_ENCRYPT);
+}
+
+void copy_buffer(unsigned char *from, unsigned char *to) {
+    int i;
+    for (i = 0; i < BF_BLOCK; ++i) {
+        to[i] = from[i];
+    }
+}
+
+void handle_encrypt_block(unsigned char *encryption_target_block, unsigned char *encrypted_block,
+                          unsigned char *rewrite_target_block) {
+    encrypt_block(encryption_target_block, encrypted_block);
+    copy_buffer(encryption_target_block, rewrite_target_block);
+}
+
+void write_buffer_to_file(unsigned char *buffer) {
+    fwrite(buffer, BF_BLOCK, 1, output_file);
+}
+
+void clear_buffer(unsigned char *buffer) {
+    int i;
+    for (i = 0; i < BF_BLOCK; ++i) {
+        buffer[i] = 0;
+    }
+}
+
+void cipher_text_steal(unsigned char *thief, unsigned char *owner, int steal_start) {
+    int i;
+    for (i = steal_start; i < BF_BLOCK; ++i) {
+        thief[i] = owner[i];
+    }
+}
+
+void encrypt_file() {
+    int bytes_read;
+    unsigned char encryption_target_block[BF_BLOCK];
+    unsigned char encrypted_block[BF_BLOCK];
+    unsigned char previous_encrypted_block[BF_BLOCK];
+
+    bytes_read = (int) fread(encryption_target_block, 1, BF_BLOCK, input_file);
+    while (bytes_read == BF_BLOCK) {
+        handle_encrypt_block(encryption_target_block, encrypted_block, previous_encrypted_block);
+
+        write_buffer_to_file(encrypted_block);
+
+        clear_buffer(encryption_target_block);
+        bytes_read = (int) fread(encryption_target_block, 1, BF_BLOCK, input_file);
+    }
+
+    cipher_text_steal(encryption_target_block, previous_encrypted_block, bytes_read);
+
+    encrypt_block(encryption_target_block, encrypted_block);
+    write_buffer_to_file(encrypted_block);
 }
 
 int write_buffer_to_file(unsigned char *buffer) {
@@ -124,15 +186,14 @@ void decrypt_file() {
 void blowfish_crypt_file() {
     if (BF_ENCRYPT == encryption_mode) {
         encrypt_file();
-    }
-    else if (BF_DECRYPT == encryption_mode) {
+    } else if (BF_DECRYPT == encryption_mode) {
         decrypt_file();
     } else {
         diedie("Wrong encryption mode");
     }
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     handle_arguments(argc, argv);
     open_files(argv);
     prepare_blowfish_key(argv[5]);
