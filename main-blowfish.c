@@ -77,7 +77,8 @@ void encrypt_block(unsigned char *input_block, unsigned char *output_block) {
 }
 
 void copy_buffer(unsigned char *from, unsigned char *to) {
-    for (int i = 0; i < BF_BLOCK; ++i) {
+    int i;
+    for (i = 0; i < BF_BLOCK; ++i) {
         to[i] = from[i];
     }
 }
@@ -93,13 +94,15 @@ void write_buffer_to_file(unsigned char *buffer) {
 }
 
 void clear_buffer(unsigned char *buffer) {
-    for (int i = 0; i < BF_BLOCK; ++i) {
+    int i;
+    for (i = 0; i < BF_BLOCK; ++i) {
         buffer[i] = 0;
     }
 }
 
 void cipher_text_steal(unsigned char *thief, unsigned char *owner, int steal_start) {
-    for (int i = steal_start; i < BF_BLOCK; ++i) {
+    int i;
+    for (i = steal_start; i < BF_BLOCK; ++i) {
         thief[i] = owner[i];
     }
 }
