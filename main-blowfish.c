@@ -63,10 +63,29 @@ void handle_arguments(int argc, char **argv) {
     }
 }
 
+void encrypt_file() {
+
+}
+
+void decrypt_file() {
+
+}
+
+void blowfish_crypt_file() {
+    if (BF_ENCRYPT == encryption_mode) {
+        encrypt_file();
+    }
+    else if (BF_DECRYPT == encryption_mode) {
+        decrypt_file();
+    } else {
+        diedie("Wrong encryption mode");
+    }
+}
+
 int main(int argc, char** argv) {
     handle_arguments(argc, argv);
     open_files(argv);
     prepare_blowfish_key(argv[5]);
-//    aes_crypt_file(encryption_mode);
+    blowfish_crypt_file(encryption_mode);
     close_files();
 }
