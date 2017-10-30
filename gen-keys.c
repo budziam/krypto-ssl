@@ -9,7 +9,7 @@
 
 int main(int argc, char* argv[]) {
     if (argc<3){
-        fprintf(stderr, "Correct Syntax:\n genKeys privateKeyName publicKeyName keyLength\n");
+        fprintf(stderr, "\n genKeys privateKeyName publicKeyName keyLength\n");
         return 1;
     }
     char* privateKeyFileName = argv[1];
@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
 
     RSA* key;
     FILE* out;
-    FILE* keyInfo = fopen("INFO_O_KLUCZU","wb");
+    FILE* keyInfo = fopen("key-information.txt","wb");
 
     int keyLength = atoi(keyLengthParameter); //Below 1024 should be considered insecure
     int exp = 3; // The exponent of e is an odd number, typically 3, 17 or 65537.
@@ -32,9 +32,9 @@ int main(int argc, char* argv[]) {
     BN_print_fp(keyInfo, key->e);
     fprintf(keyInfo, "\nPRIVATE EXPONENT: ");
     BN_print_fp(keyInfo, key->d);
-    fprintf(keyInfo, "\nSCERET PRIME FACTOR P: ");
+    fprintf(keyInfo, "\nSECRET PRIME FACTOR P: ");
     BN_print_fp(keyInfo, key->d);
-    fprintf(keyInfo, "\nSCERET PRIME FACTOR Q: ");
+    fprintf(keyInfo, "\nSECRET PRIME FACTOR Q: ");
     BN_print_fp(keyInfo, key->q);
     fflush(keyInfo);
     fclose(keyInfo);
