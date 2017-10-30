@@ -2,7 +2,7 @@
 
 CIPHER="abc123"
 STORAGE_PATH="./storage"
-FILES=$( ls ${STORAGE_PATH} )
+FILES=$( ls -Sr ${STORAGE_PATH} )
 
 for FILE in ${FILES}
 do
