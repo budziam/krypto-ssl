@@ -6,10 +6,10 @@
 #include <openssl/sha.h>
 
 
-unsigned char *md5sum(char *inputFileName) {
+unsigned char *sha512_sum(char *inputFileName) {
     FILE *inputFile;
     unsigned char inputVector[16];
-    unsigned char *md5Vector = (unsigned char *) malloc(16 * sizeof(unsigned char));
+    unsigned char *sha512_vector = (unsigned char *) malloc(16 * sizeof(unsigned char));
     if ((inputFile = fopen(inputFileName, "rb")) == NULL) {
         fprintf(stderr, "Otwarcie pliku %s sie nie powiodlo\n", inputFileName);
         exit(1);
@@ -24,9 +24,9 @@ unsigned char *md5sum(char *inputFileName) {
         if (bytesRead == 0) break;
         SHA512_Update(&hashChunk, inputVector, bytesRead);
     }
-    SHA512_Final(md5Vector, &hashChunk);
+    SHA512_Final(sha512_vector, &hashChunk);
 
-    return md5Vector;
+    return sha512_vector;
 }
 
 int main(int argc, char *argv[]) {
@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
     FILE *keyFile;
     FILE *signFile;
     RSA *rsaPrivateKey;
-    unsigned char *md5Vector;
+    unsigned char *sha512_vector;
 
     long keySize;
     unsigned char *buffer;
@@ -73,11 +73,11 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    md5Vector = md5sum(toSignFileName);
+    sha512_vector = sha512_sum(toSignFileName);
 
     buffer = (unsigned char *) malloc(RSA_size(rsaPrivateKey));//miejsce na podpis
     unsigned int signLength; //dlugosc podpisu
-    if ((RSA_sign(NID_md5, md5Vector, sizeof(md5Vector), buffer, &signLength, rsaPrivateKey)) == 0) {
+    if ((RSA_sign(NID_sha512, sha512_vector, sizeof(sha512_vector), buffer, &signLength, rsaPrivateKey)) == 0) {
         fprintf(stderr, "Problem with signing a file\n");
         return 1;
     }
@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
     fclose(signFile);
 
     free(buffer);
-    free(md5Vector);
+    free(sha512_vector);
     free(signFileName);
     RSA_free(rsaPrivateKey);
 

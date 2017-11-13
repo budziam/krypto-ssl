@@ -3,31 +3,32 @@
 #include <string.h>
 #include <openssl/rsa.h>
 #include <openssl/engine.h>
-#include <openssl/md5.h>
+#include <openssl/sha.h>
 
-unsigned char *md5sum(char *inputFileName) {
+
+unsigned char *sha512_sum(char *inputFileName) {
     FILE *inputFile;
     unsigned char inputVector[16];
-    unsigned char *md5Vector = (unsigned char *) malloc(16 * sizeof(unsigned char));
+    unsigned char *sha512_vector = (unsigned char *) malloc(16 * sizeof(unsigned char));
     if ((inputFile = fopen(inputFileName, "rb")) == NULL) {
         fprintf(stderr, "Otwarcie pliku %s sie nie powiodlo\n", inputFileName);
         exit(1);
     }
 
     /* Czastka hasha */
-    MD5_CTX hashChunk;
-    MD5_Init(&hashChunk);
+    SHA_CTX hashChunk;
+    SHA512_Init(&hashChunk);
 
     /* Obliczanie hasha */
     size_t bytesRead;
     while (1) {
         bytesRead = fread(inputVector, sizeof(char), sizeof(inputVector), inputFile);
         if (bytesRead == 0) break;
-        MD5_Update(&hashChunk, inputVector, bytesRead);
+        SHA512_Update(&hashChunk, inputVector, bytesRead);
     }
-    MD5_Final(md5Vector, &hashChunk);
+    SHA512_Final(sha512_vector, &hashChunk);
 
-    return md5Vector;
+    return sha512_vector;
 }
 
 int main(int argc, char *argv[]) {
@@ -42,7 +43,7 @@ int main(int argc, char *argv[]) {
     FILE *keyFile;
     FILE *signFile;
     RSA *rsaPublicKey;
-    unsigned char *md5Vector;
+    unsigned char *sha512_vector;
     unsigned int signLength;
 
     long keySize;
@@ -71,7 +72,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    md5Vector = md5sum(toVerifyFileName);
+    sha512_vector = sha512_sum(toVerifyFileName);
 
     if ((signFile = fopen(signFileName, "rb")) == NULL) {
         fprintf(stderr, "Cannot open file signFileName\n");
@@ -86,13 +87,13 @@ int main(int argc, char *argv[]) {
     fread(buffer, sizeof(unsigned char), signLength, signFile);
     fclose(signFile);
 
-    if ((RSA_verify(NID_md5, md5Vector, sizeof(md5Vector), buffer, signLength, rsaPublicKey)) == 1) {
+    if ((RSA_verify(NID_sha512, sha512_vector, sizeof(sha512_vector), buffer, signLength, rsaPublicKey)) == 1) {
         printf("Sign is true\n");
     } else {
         printf("Sign is false\n");
     }
 
-    free(md5Vector);
+    free(sha512_vector);
     free(buffer);
     RSA_free(rsaPublicKey);
 
