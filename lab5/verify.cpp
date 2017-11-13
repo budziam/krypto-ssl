@@ -32,10 +32,9 @@ unsigned char *md5sum(char *inputFileName) {
 
 int main(int argc, char *argv[]) {
     if (argc != 4) {
-        fprintf(stderr, "Uzycie programu: verify\n nazwaPlikuKlucza nazwaPlikuDoWeryfikacji plikPodpisu\n");
+        fprintf(stderr, "Usage: verify\n publicKeyPath toVerifyFileName signFile\n");
         return 1;
     }
-
 
     char *keyFileName = argv[1];
     char *toVerifyFileName = argv[2];
@@ -45,12 +44,11 @@ int main(int argc, char *argv[]) {
     RSA *rsaPublicKey;
     unsigned char *md5Vector;
     unsigned int signLength;
-    /* do wczytywania klucza */
+
     long keySize;
     unsigned char *buffer;
     unsigned char *buffer2;
 
-    /* wczytywanie klucza publicznego */
     rsaPublicKey = RSA_new();
     if ((keyFile = fopen(keyFileName, "rb")) == NULL) {
         fprintf(stderr, "cannot open keyFileName\n");
@@ -62,7 +60,7 @@ int main(int argc, char *argv[]) {
     rewind(keyFile);
 
     buffer = (unsigned char *) malloc(keySize * sizeof(unsigned char));
-    buffer2 = buffer; // jesli probuje bezposrednio to Naruszenie Ochrony Pamieci
+    buffer2 = buffer;
     fread(buffer, sizeof(unsigned char), keySize, keyFile);
     d2i_RSAPublicKey(&rsaPublicKey, (const unsigned char **) &buffer2, keySize);
     fclose(keyFile);
