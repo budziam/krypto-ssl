@@ -15,11 +15,9 @@ unsigned char *sha512_sum(char *inputFileName) {
         exit(1);
     }
 
-    /* Czastka hasha */
-    SHA_CTX hashChunk;
+    SHA512_CTX hashChunk;
     SHA512_Init(&hashChunk);
 
-    /* Obliczanie hasha */
     size_t bytesRead;
     while (1) {
         bytesRead = fread(inputVector, sizeof(char), sizeof(inputVector), inputFile);

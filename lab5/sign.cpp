@@ -15,7 +15,7 @@ unsigned char *sha512_sum(char *inputFileName) {
         exit(1);
     }
 
-    SHA_CTX hashChunk;
+    SHA512_CTX hashChunk;
     SHA512_Init(&hashChunk);
 
     size_t bytesRead;
@@ -75,8 +75,8 @@ int main(int argc, char *argv[]) {
 
     sha512_vector = sha512_sum(toSignFileName);
 
-    buffer = (unsigned char *) malloc(RSA_size(rsaPrivateKey));//miejsce na podpis
-    unsigned int signLength; //dlugosc podpisu
+    buffer = (unsigned char *) malloc(RSA_size(rsaPrivateKey));
+    unsigned int signLength;
     if ((RSA_sign(NID_sha512, sha512_vector, sizeof(sha512_vector), buffer, &signLength, rsaPrivateKey)) == 0) {
         fprintf(stderr, "Problem with signing a file\n");
         return 1;
