@@ -3,7 +3,7 @@
 #include <string.h>
 #include <openssl/rsa.h>
 #include <openssl/engine.h>
-#include <openssl/md5.h>
+#include <openssl/sha.h>
 
 
 unsigned char *md5sum(char *inputFileName) {
@@ -15,16 +15,16 @@ unsigned char *md5sum(char *inputFileName) {
         exit(1);
     }
 
-    MD5_CTX hashChunk;
-    MD5_Init(&hashChunk);
+    SHA_CTX hashChunk;
+    SHA512_Init(&hashChunk);
 
     size_t bytesRead;
     while (1) {
         bytesRead = fread(inputVector, sizeof(char), sizeof(inputVector), inputFile);
         if (bytesRead == 0) break;
-        MD5_Update(&hashChunk, inputVector, bytesRead);
+        SHA512_Update(&hashChunk, inputVector, bytesRead);
     }
-    MD5_Final(md5Vector, &hashChunk);
+    SHA512_Final(md5Vector, &hashChunk);
 
     return md5Vector;
 }
