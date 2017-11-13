@@ -8,8 +8,8 @@
 
 unsigned char *sha512_sum(char *inputFileName) {
     FILE *inputFile;
-    unsigned char inputVector[16];
-    unsigned char *sha512_vector = (unsigned char *) malloc(16 * sizeof(unsigned char));
+    unsigned char inputVector[512];
+    unsigned char *sha512_vector = (unsigned char *) malloc(512 * sizeof(unsigned char));
     if ((inputFile = fopen(inputFileName, "rb")) == NULL) {
         fprintf(stderr, "Otwarcie pliku %s sie nie powiodlo\n", inputFileName);
         exit(1);
